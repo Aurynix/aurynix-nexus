@@ -90,14 +90,14 @@ async def unauth_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient,
 
 
 @pytest.fixture
-def mock_openai_embeddings():
-    with patch("app.rag.embedder.AsyncOpenAI") as mock_cls:
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.return_value = MagicMock(
-            data=[MagicMock(embedding=[0.1] * 1536)]
-        )
-        mock_cls.return_value = mock_client
-        yield mock_client
+def mock_fastembed():
+    import numpy as np
+
+    with patch("app.rag.embedder._get_model") as mock_get_model:
+        mock_model = MagicMock()
+        mock_model.embed.side_effect = lambda texts: [np.array([0.1] * 384) for _ in texts]
+        mock_get_model.return_value = mock_model
+        yield mock_model
 
 
 @pytest.fixture

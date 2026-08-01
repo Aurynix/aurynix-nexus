@@ -23,8 +23,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install dependencies
-        run: uv sync --frozen
+      - name: Install dependencies (with dev extras)
+        run: uv sync --frozen --extra dev
 
       - name: Ruff lint
         run: uv run ruff check app/ tests/

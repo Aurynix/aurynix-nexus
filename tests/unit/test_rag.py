@@ -30,20 +30,20 @@ def test_chunker_short_doc_single_chunk():
 
 
 @pytest.mark.asyncio
-async def test_embedder_batches(mock_openai_embeddings):
-    from app.rag.embedder import OpenAIEmbedder
+async def test_embedder_batches(mock_fastembed):
+    from app.rag.embedder import FastEmbedEmbedder
 
-    embedder = OpenAIEmbedder()
-    texts = [f"sentence {i}" for i in range(150)]
+    embedder = FastEmbedEmbedder()
+    texts = [f"sentence {i}" for i in range(5)]
     embeddings = await embedder.embed_documents(texts)
-    assert len(embeddings) == 150
-    assert mock_openai_embeddings.embeddings.create.call_count == 2
+    assert len(embeddings) == 5
+    assert all(len(e) == 384 for e in embeddings)
 
 
 @pytest.mark.asyncio
-async def test_embedder_single_query(mock_openai_embeddings):
-    from app.rag.embedder import OpenAIEmbedder
+async def test_embedder_single_query(mock_fastembed):
+    from app.rag.embedder import FastEmbedEmbedder
 
-    embedder = OpenAIEmbedder()
+    embedder = FastEmbedEmbedder()
     embedding = await embedder.embed_query("what is the revenue?")
-    assert len(embedding) == 1536
+    assert len(embedding) == 384
