@@ -85,9 +85,7 @@ async def memory_save_node(state: AgentState, store: BaseStore) -> dict:
     if len(messages) < 2:
         return {}
 
-    last_human = next(
-        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
-    )
+    last_human = next((m for m in reversed(messages) if isinstance(m, HumanMessage)), None)
     if not last_human:
         return {}
 
@@ -95,12 +93,13 @@ async def memory_save_node(state: AgentState, store: BaseStore) -> dict:
         "From this user message, extract any personal facts worth remembering "
         "(name, role, preferences, important context). Return ONLY a JSON object "
         "with key-value pairs of facts, or {} if nothing notable. "
-        "Example: {\"name\": \"Alice\", \"role\": \"product manager\"}\n\n"
+        'Example: {"name": "Alice", "role": "product manager"}\n\n'
         f"User message: {last_human.content}"
     )
 
     try:
         import json
+
         result = await get_llm().ainvoke([HumanMessage(content=extraction_prompt)])
         text = result.content.strip()
         start = text.find("{")

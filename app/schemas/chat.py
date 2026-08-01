@@ -26,6 +26,7 @@ class SSEEvent(BaseModel):
 
     def to_sse(self) -> str:
         import json
+
         payload: dict[str, Any] = {"type": self.type}
         if self.data:
             payload.update(self.data)

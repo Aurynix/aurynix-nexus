@@ -1,5 +1,4 @@
 import asyncio
-import shutil
 import uuid
 from pathlib import Path
 
@@ -64,13 +63,11 @@ async def upload_document(file: UploadFile, user: User, db: AsyncSession) -> Doc
     return DocumentResponse.model_validate(doc)
 
 
-async def _ingest_background(
-    file_path: Path, doc_id: str, user_id: str, db_url: str
-) -> None:
-    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+async def _ingest_background(file_path: Path, doc_id: str, user_id: str, db_url: str) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     engine = create_async_engine(db_url)
-    SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
 
     try:
         pipeline = RAGPipeline()
@@ -83,10 +80,8 @@ async def _ingest_background(
         status = "failed"
         error = str(exc)
 
-    async with SessionLocal() as session:
-        result = await session.execute(
-            select(Document).where(Document.id == uuid.UUID(doc_id))
-        )
+    async with session_factory() as session:
+        result = await session.execute(select(Document).where(Document.id == uuid.UUID(doc_id)))
         doc = result.scalar_one_or_none()
         if doc:
             doc.status = status
@@ -99,9 +94,7 @@ async def _ingest_background(
 
 async def list_documents(user: User, db: AsyncSession) -> DocumentListResponse:
     result = await db.execute(
-        select(Document)
-        .where(Document.user_id == user.id)
-        .order_by(Document.created_at.desc())
+        select(Document).where(Document.user_id == user.id).order_by(Document.created_at.desc())
     )
     docs = result.scalars().all()
     return DocumentListResponse(

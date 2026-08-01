@@ -37,11 +37,7 @@ class RAGPipeline:
                     "doc_id": doc_id,
                     "user_id": user_id,
                     "filename": file_path.name,
-                    **{
-                        k: v
-                        for k, v in chunk.metadata.items()
-                        if k not in ("doc_id", "user_id")
-                    },
+                    **{k: v for k, v in chunk.metadata.items() if k not in ("doc_id", "user_id")},
                 },
             )
             for chunk, emb in zip(chunks, embeddings)
@@ -61,7 +57,7 @@ class RAGPipeline:
         return await self._retriever.search(embedding, user_id=user_id)
 
     async def delete_document(self, doc_id: str, user_id: str) -> None:
-        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
         client = await get_qdrant_client()
         await client.delete(

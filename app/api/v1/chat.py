@@ -24,7 +24,7 @@ async def chat_stream(
     db: DbSession,
     request: Request,
 ) -> StreamingResponse:
-    graph: "CompiledGraph" = request.app.state.graph
+    graph: CompiledGraph = request.app.state.graph
 
     return StreamingResponse(
         stream_chat(
@@ -44,7 +44,9 @@ async def chat_stream(
 
 
 @router.get("/conversations", response_model=list[ConversationResponse])
-async def list_conversations(current_user: CurrentUser, db: DbSession) -> list[ConversationResponse]:
+async def list_conversations(
+    current_user: CurrentUser, db: DbSession
+) -> list[ConversationResponse]:
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
@@ -81,9 +83,7 @@ async def delete_conversation(
     current_user: CurrentUser,
     db: DbSession,
 ) -> None:
-    result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
-    )
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     conv = result.scalar_one_or_none()
     if not conv:
         raise NotFoundError("Conversation not found.").to_http_exception()

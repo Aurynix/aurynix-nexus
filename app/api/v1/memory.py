@@ -32,7 +32,5 @@ async def update_fact(
 
 
 @router.delete("/{fact_id}", status_code=204)
-async def delete_fact(
-    fact_id: uuid.UUID, current_user: CurrentUser, db: DbSession
-) -> None:
+async def delete_fact(fact_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> None:
     await memory_service.delete_fact(fact_id, current_user, db)

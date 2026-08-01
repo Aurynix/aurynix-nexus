@@ -19,9 +19,7 @@ async def list_facts(user: User, db: AsyncSession) -> list[MemoryFactResponse]:
     return [MemoryFactResponse.model_validate(f) for f in facts]
 
 
-async def create_fact(
-    data: MemoryFactCreate, user: User, db: AsyncSession
-) -> MemoryFactResponse:
+async def create_fact(data: MemoryFactCreate, user: User, db: AsyncSession) -> MemoryFactResponse:
     fact = MemoryFact(
         user_id=user.id,
         key=data.key,
