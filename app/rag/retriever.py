@@ -1,5 +1,5 @@
 from langchain_core.documents import Document
-from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
 from app.core.config import settings
 from app.core.logging import get_logger

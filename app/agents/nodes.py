@@ -1,10 +1,9 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.store.base import BaseStore
 
 from app.agents.state import AgentState
-from app.core.config import settings
+from app.core.llm import get_llm
 from app.core.logging import get_logger
 from app.memory.store import load_user_facts, upsert_user_fact
 from app.tools.rag_tool import make_rag_tool
@@ -65,11 +64,7 @@ async def agent_node(state: AgentState, config: RunnableConfig) -> dict:
     user_id = state["user_id"]
     rag_tool = make_rag_tool(user_id)
 
-    llm = ChatOpenAI(
-        model=settings.openai_chat_model,
-        api_key=settings.openai_api_key,
-        streaming=True,
-    ).bind_tools([rag_tool])
+    llm = get_llm().bind_tools([rag_tool])
 
     facts_text = "\n".join(state["user_facts"]) if state["user_facts"] else "No facts stored yet."
     system = SystemMessage(content=_SYSTEM_PROMPT.format(user_facts=facts_text))
@@ -90,28 +85,22 @@ async def memory_save_node(state: AgentState, store: BaseStore) -> dict:
     if len(messages) < 2:
         return {}
 
-    last_human = next(
-        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
-    )
+    last_human = next((m for m in reversed(messages) if isinstance(m, HumanMessage)), None)
     if not last_human:
         return {}
-
-    extract_llm = ChatOpenAI(
-        model=settings.openai_chat_model,
-        api_key=settings.openai_api_key,
-    )
 
     extraction_prompt = (
         "From this user message, extract any personal facts worth remembering "
         "(name, role, preferences, important context). Return ONLY a JSON object "
         "with key-value pairs of facts, or {} if nothing notable. "
-        "Example: {\"name\": \"Alice\", \"role\": \"product manager\"}\n\n"
+        'Example: {"name": "Alice", "role": "product manager"}\n\n'
         f"User message: {last_human.content}"
     )
 
     try:
         import json
-        result = await extract_llm.ainvoke([HumanMessage(content=extraction_prompt)])
+
+        result = await get_llm().ainvoke([HumanMessage(content=extraction_prompt)])
         text = result.content.strip()
         start = text.find("{")
         end = text.rfind("}") + 1

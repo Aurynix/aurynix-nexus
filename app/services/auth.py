@@ -1,10 +1,9 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.exceptions import AuthenticationError, ConflictError
 from app.core.security import (
     create_access_token,

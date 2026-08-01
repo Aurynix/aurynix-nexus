@@ -26,8 +26,8 @@ async def test_engine():
 
 @pytest_asyncio.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    SessionLocal = async_sessionmaker(bind=test_engine, expire_on_commit=False)
-    async with SessionLocal() as session:
+    factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    async with factory() as session:
         yield session
 
 
@@ -37,7 +37,7 @@ async def test_user(db_session: AsyncSession) -> User:
 
     user = User(
         id=uuid.uuid4(),
-        email="test@aurynix.test",
+        email=f"test-{uuid.uuid4().hex[:8]}@aurynix.test",
         hashed_password=hash_password("password123"),
         is_active=True,
     )
@@ -90,14 +90,14 @@ async def unauth_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient,
 
 
 @pytest.fixture
-def mock_openai_embeddings():
-    with patch("app.rag.embedder.AsyncOpenAI") as mock_cls:
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.return_value = MagicMock(
-            data=[MagicMock(embedding=[0.1] * 1536)]
-        )
-        mock_cls.return_value = mock_client
-        yield mock_client
+def mock_fastembed():
+    import numpy as np
+
+    with patch("app.rag.embedder._get_model") as mock_get_model:
+        mock_model = MagicMock()
+        mock_model.embed.side_effect = lambda texts: [np.array([0.1] * 384) for _ in texts]
+        mock_get_model.return_value = mock_model
+        yield mock_model
 
 
 @pytest.fixture

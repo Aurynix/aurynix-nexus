@@ -1,10 +1,9 @@
 import asyncio
-import json
 import uuid
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
-from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessageChunk, HumanMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,7 +63,6 @@ async def stream_chat(
     ).to_sse()
 
     assistant_content_parts: list[str] = []
-    ping_task: asyncio.Task | None = None
 
     async def _ping_generator() -> AsyncGenerator[str, None]:
         while True:
@@ -101,7 +99,9 @@ async def stream_chat(
 
     except Exception as exc:
         logger.error("Chat stream error", error=str(exc), conversation_id=conv_id)
-        yield SSEEvent(type="error", data={"detail": "An error occurred during streaming."}).to_sse()
+        yield SSEEvent(
+            type="error", data={"detail": "An error occurred during streaming."}
+        ).to_sse()
     finally:
         full_response = "".join(assistant_content_parts)
         if full_response:

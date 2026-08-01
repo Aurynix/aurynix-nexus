@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.database.qdrant import get_qdrant_client
 from app.rag.chunker import DocumentChunker
-from app.rag.embedder import OpenAIEmbedder
+from app.rag.embedder import FastEmbedEmbedder
 from app.rag.loader import load
 from app.rag.retriever import QdrantRetriever
 
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 class RAGPipeline:
     def __init__(self) -> None:
-        self._embedder = OpenAIEmbedder()
+        self._embedder = FastEmbedEmbedder()
         self._chunker = DocumentChunker()
         self._retriever = QdrantRetriever()
 
@@ -37,11 +37,7 @@ class RAGPipeline:
                     "doc_id": doc_id,
                     "user_id": user_id,
                     "filename": file_path.name,
-                    **{
-                        k: v
-                        for k, v in chunk.metadata.items()
-                        if k not in ("doc_id", "user_id")
-                    },
+                    **{k: v for k, v in chunk.metadata.items() if k not in ("doc_id", "user_id")},
                 },
             )
             for chunk, emb in zip(chunks, embeddings)
@@ -61,7 +57,7 @@ class RAGPipeline:
         return await self._retriever.search(embedding, user_id=user_id)
 
     async def delete_document(self, doc_id: str, user_id: str) -> None:
-        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
         client = await get_qdrant_client()
         await client.delete(

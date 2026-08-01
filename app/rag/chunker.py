@@ -10,9 +10,7 @@ class DocumentChunker:
             length_function=len,
         )
 
-    def chunk(
-        self, docs: list[Document], doc_id: str, user_id: str
-    ) -> list[Document]:
+    def chunk(self, docs: list[Document], doc_id: str, user_id: str) -> list[Document]:
         chunks = self._splitter.split_documents(docs)
         for chunk in chunks:
             chunk.metadata["doc_id"] = doc_id

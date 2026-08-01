@@ -3,6 +3,7 @@ from pathlib import Path
 
 def safe_filename(filename: str) -> str:
     import re
+
     name = re.sub(r"[^\w\s\-.]", "", filename).strip()
     return name or "unnamed"
 

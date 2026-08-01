@@ -35,7 +35,7 @@ async def ensure_collection() -> None:
         await client.create_collection(
             collection_name=settings.qdrant_collection,
             vectors_config=VectorParams(
-                size=settings.openai_embedding_dimensions,
+                size=settings.embedding_dimensions,
                 distance=Distance.COSINE,
                 on_disk=True,
             ),

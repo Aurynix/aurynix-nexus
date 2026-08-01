@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, File, UploadFile
 
 from app.core.dependencies import CurrentUser, DbSession
 from app.schemas.document import DocumentListResponse, DocumentResponse

@@ -33,6 +33,7 @@ async def check_postgres_health() -> bool:
     try:
         async with engine.connect() as conn:
             from sqlalchemy import text
+
             await conn.execute(text("SELECT 1"))
         return True
     except Exception:

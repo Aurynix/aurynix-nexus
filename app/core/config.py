@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,11 +15,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # OpenAI
-    openai_api_key: str = ""
-    openai_chat_model: str = "gpt-4o"
-    openai_embedding_model: str = "text-embedding-3-small"
-    openai_embedding_dimensions: int = 1536
+    # Groq (LLM)
+    groq_api_key: str = ""
+    model_name: str = "llama-3.3-70b-versatile"
+
+    # Embeddings — FastEmbed (local, no API key)
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_dimensions: int = 384
 
     # PostgreSQL
     postgres_host: str = "localhost"
@@ -62,23 +65,27 @@ class Settings(BaseSettings):
     # ── Computed URLs ──────────────────────────────────────────────────────
 
     @property
+    def _pg_userinfo(self) -> str:
+        return f"{quote(self.postgres_user, safe='')}:{quote(self.postgres_password, safe='')}"
+
+    @property
     def async_database_url(self) -> str:
         return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+asyncpg://{self._pg_userinfo}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
     @property
     def sync_database_url(self) -> str:
         return (
-            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+psycopg2://{self._pg_userinfo}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
     @property
     def checkpointer_database_url(self) -> str:
         return (
-            f"postgresql://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql://{self._pg_userinfo}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 

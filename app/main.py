@@ -21,10 +21,10 @@ async def lifespan(app: FastAPI):
 
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 
+    from app.agents.graphs import build_graph
     from app.database.qdrant import ensure_collection
     from app.memory.checkpointer import get_checkpointer
     from app.memory.store import get_memory_store
-    from app.agents.graphs import build_graph
 
     await ensure_collection()
 
@@ -40,8 +40,8 @@ async def lifespan(app: FastAPI):
     yield
 
     from app.database.postgres import engine
-    from app.database.redis import close_redis
     from app.database.qdrant import close_qdrant
+    from app.database.redis import close_redis
     from app.memory.checkpointer import close_checkpointer
     from app.memory.store import close_memory_store
 

@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.dependencies import CurrentUser, DbSession, RedisClient
-from app.core.exceptions import AuthenticationError
 from app.core.security import decode_token
 from app.schemas.auth import (
     LoginRequest,

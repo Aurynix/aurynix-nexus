@@ -4,7 +4,7 @@ import re
 def truncate(text: str, max_chars: int = 500, suffix: str = "...") -> str:
     if len(text) <= max_chars:
         return text
-    return text[:max_chars - len(suffix)] + suffix
+    return text[: max_chars - len(suffix)] + suffix
 
 
 def clean_whitespace(text: str) -> str:

@@ -8,7 +8,7 @@ async def test_chat_stream_requires_auth(unauth_client: AsyncClient):
         "/api/v1/chat/stream",
         json={"message": "hello"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -32,6 +32,7 @@ async def test_list_conversations_empty(client: AsyncClient, auth_headers: dict)
 @pytest.mark.asyncio
 async def test_get_nonexistent_conversation_returns_404(client: AsyncClient, auth_headers: dict):
     import uuid
+
     response = await client.get(
         f"/api/v1/chat/conversations/{uuid.uuid4()}",
         headers=auth_headers,
