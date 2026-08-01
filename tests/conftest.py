@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.dependencies import get_async_session, get_current_user
 from app.main import create_app
@@ -26,9 +26,15 @@ async def test_engine():
 
 @pytest_asyncio.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    session_factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
-    async with session_factory() as session:
+    conn = await test_engine.connect()
+    await conn.begin()
+    session = AsyncSession(bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint")
+    try:
         yield session
+    finally:
+        await session.close()
+        await conn.rollback()
+        await conn.close()
 
 
 @pytest_asyncio.fixture
