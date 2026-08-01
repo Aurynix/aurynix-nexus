@@ -62,7 +62,7 @@ async def test_me_returns_user_profile(client: AsyncClient, auth_headers: dict):
 @pytest.mark.asyncio
 async def test_me_without_token_returns_403(unauth_client: AsyncClient):
     response = await unauth_client.get("/api/v1/auth/me")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

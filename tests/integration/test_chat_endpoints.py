@@ -8,7 +8,7 @@ async def test_chat_stream_requires_auth(unauth_client: AsyncClient):
         "/api/v1/chat/stream",
         json={"message": "hello"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
