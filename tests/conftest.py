@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.dependencies import get_async_session, get_current_user
 from app.main import create_app
@@ -26,17 +26,9 @@ async def test_engine():
 
 @pytest_asyncio.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    conn = await test_engine.connect()
-    await conn.begin()
-    session = AsyncSession(
-        bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
-    )
-    try:
+    factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    async with factory() as session:
         yield session
-    finally:
-        await session.close()
-        await conn.rollback()
-        await conn.close()
 
 
 @pytest_asyncio.fixture
@@ -45,7 +37,7 @@ async def test_user(db_session: AsyncSession) -> User:
 
     user = User(
         id=uuid.uuid4(),
-        email="test@aurynix.test",
+        email=f"test-{uuid.uuid4().hex[:8]}@aurynix.test",
         hashed_password=hash_password("password123"),
         is_active=True,
     )
