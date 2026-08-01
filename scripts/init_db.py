@@ -20,11 +20,8 @@ def run_migrations() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         check=True,
-        capture_output=True,
         text=True,
     )
-    if result.stdout:
-        print(result.stdout)
     print("Migrations complete.")
 
 

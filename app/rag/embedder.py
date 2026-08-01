@@ -1,27 +1,30 @@
-from openai import AsyncOpenAI
+import asyncio
+from functools import lru_cache
+
+from fastembed import TextEmbedding
 
 from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-_BATCH_SIZE = 100
+
+@lru_cache(maxsize=1)
+def _get_model(model_name: str) -> TextEmbedding:
+    return TextEmbedding(model_name=model_name)
 
 
-class OpenAIEmbedder:
+class FastEmbedEmbedder:
     def __init__(self) -> None:
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self._model = settings.openai_embedding_model
+        self._model_name = settings.embedding_model
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        all_embeddings: list[list[float]] = []
-        for i in range(0, len(texts), _BATCH_SIZE):
-            batch = texts[i : i + _BATCH_SIZE]
-            response = await self._client.embeddings.create(model=self._model, input=batch)
-            all_embeddings.extend([item.embedding for item in response.data])
-        logger.debug("Embedded documents", count=len(texts), model=self._model)
-        return all_embeddings
+        loop = asyncio.get_event_loop()
+        model = _get_model(self._model_name)
+        embeddings = await loop.run_in_executor(None, lambda: list(model.embed(texts)))
+        logger.debug("Embedded documents", count=len(texts), model=self._model_name)
+        return [e.tolist() for e in embeddings]
 
     async def embed_query(self, text: str) -> list[float]:
-        response = await self._client.embeddings.create(model=self._model, input=[text])
-        return response.data[0].embedding
+        results = await self.embed_documents([text])
+        return results[0]

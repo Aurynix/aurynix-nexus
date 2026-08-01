@@ -18,13 +18,10 @@ dependencies = [
     # LangGraph / LangChain
     "langgraph>=0.2",
     "langgraph-checkpoint-postgres>=2.0",
-    "langchain-openai>=0.2",
+    "langchain-groq>=0.2",
     "langchain-community>=0.3",
     "langchain-qdrant>=0.2",
     "langchain-core>=0.3",
-
-    # OpenAI
-    "openai>=1.50",
 
     # Database — PostgreSQL
     "sqlalchemy[asyncio]>=2.0",
@@ -37,15 +34,15 @@ dependencies = [
     "redis>=5.0",
 
     # Vector DB
-    "qdrant-client>=1.12",
+    "qdrant-client[fastembed]>=1.12",
 
     # Auth
     "python-jose[cryptography]>=3.3",
-    "passlib[bcrypt]>=1.7",
+    "bcrypt>=4.0",
 
     # Config / Settings
     "pydantic-settings>=2.5",
-    "pydantic>=2.0",
+    "pydantic[email]>=2.0",
 
     # Logging
     "structlog>=24.0",
