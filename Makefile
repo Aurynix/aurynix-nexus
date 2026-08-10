@@ -43,7 +43,7 @@ help:
 # Setup
 # -----------------------------
 .venv:
-	uv sync
+	uv sync --extra dev
 
 install: .venv
 
