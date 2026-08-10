@@ -60,6 +60,10 @@ dependencies = [
 
     # Phase 2 — rate limiting / crypto
     "cryptography>=43.0",
+
+    # Phase 2 — Google OAuth + APIs
+    "google-auth-oauthlib>=1.2",
+    "google-api-python-client>=2.140",
 ]
 
 [project.optional-dependencies]

@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     rate_limit_documents: int = 30
     rate_limit_default: int = 60
 
+    # Phase 2 — Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/api/v1/oauth/google/callback"
+    oauth_success_redirect: str = "http://localhost:3000/settings?oauth=success"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list) -> list[str]:

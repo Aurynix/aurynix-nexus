@@ -27,6 +27,9 @@ class User(Base):
     memory_facts: Mapped[list["MemoryFact"]] = relationship(  # noqa: F821
         "MemoryFact", back_populates="user", cascade="all, delete-orphan"
     )
+    oauth_tokens: Mapped[list["OAuthToken"]] = relationship(  # noqa: F821
+        "OAuthToken", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"
