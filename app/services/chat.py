@@ -56,6 +56,7 @@ async def stream_chat(
         "human_feedback": None,
         "iteration_count": 0,
         "error": None,
+        "next_agent": None,
     }
 
     yield SSEEvent(
