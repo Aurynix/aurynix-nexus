@@ -12,7 +12,7 @@ endif
 PYTHON  := uv run python
 UVICORN := uv run uvicorn
 PYTEST  := uv run pytest
-RUFF    := uv run ruff
+RUFF    := uvx ruff
 
 SERVER_IP   := YOUR_SERVER_IP
 SERVER_KEY  := ~/.ssh/aurynix.key
