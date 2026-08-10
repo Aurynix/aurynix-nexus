@@ -43,7 +43,7 @@ def _extract_user_id(request: Request) -> str | None:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    token = auth[len("Bearer "):]
+    token = auth[len("Bearer ") :]
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         return payload.get("sub")

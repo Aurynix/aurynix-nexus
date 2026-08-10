@@ -1,4 +1,5 @@
 """ARQ WorkerSettings — entry point for the worker process."""
+
 from app.core.config import settings
 from app.workers.tasks import ingest_document
 

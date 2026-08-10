@@ -1,6 +1,6 @@
 # OAuth 2.0 — Google Integration
 
-Gmail and Google Calendar require per-user OAuth 2.0 tokens. Each user connects their own Google account and Aurynix stores the resulting access/refresh token pair, encrypted at rest.
+Gmail and Google Calendar require per-user OAuth 2.0 tokens. Each user connects their Google account and Aurynix stores the resulting token set, AES-256-GCM encrypted, in the `oauth_tokens` table.
 
 ---
 
@@ -8,17 +8,12 @@ Gmail and Google Calendar require per-user OAuth 2.0 tokens. Each user connects 
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com).
 2. Create a project (or reuse one).
-3. **APIs & Services → Enable APIs:**
-   - Gmail API
-   - Google Calendar API
+3. **APIs & Services → Enable APIs:** Gmail API and Google Calendar API.
 4. **APIs & Services → OAuth consent screen:**
-   - User type: External (for testing) or Internal (Workspace only).
-   - Add scopes:
-     - `https://www.googleapis.com/auth/gmail.modify`
-     - `https://www.googleapis.com/auth/calendar`
-     - `openid`, `email`, `profile`
+   - User type: External (for testing) or Internal (Workspace).
+   - Add scopes: `openid`, `email`, `gmail.readonly`, `gmail.send`, `calendar.readonly`, `calendar.events`.
 5. **APIs & Services → Credentials → Create OAuth 2.0 Client ID:**
-   - Application type: Web application.
+   - Application type: **Web application**.
    - Authorized redirect URI: `http://localhost:8000/api/v1/oauth/google/callback`
 6. Copy **Client ID** and **Client Secret** into `.env`.
 
@@ -26,6 +21,7 @@ Gmail and Google Calendar require per-user OAuth 2.0 tokens. Each user connects 
 GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-...
 GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/oauth/google/callback
+OAUTH_SUCCESS_REDIRECT=http://localhost:3000/settings?oauth=success
 ```
 
 ---
@@ -35,31 +31,29 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/oauth/google/callback
 ```
 User clicks "Connect Google"
         │
-GET /api/v1/oauth/google/authorize
+GET /api/v1/oauth/google/authorize   (requires JWT)
         │
         ▼
-Aurynix builds authorization URL (state = JWT-signed user_id)
+Aurynix generates state → stored in Redis (10-min TTL)
+Returns { "url": "https://accounts.google.com/...", "state": "..." }
         │
         ▼
-Browser → accounts.google.com/o/oauth2/auth
+Frontend redirects browser to Google consent screen
         │
 User grants permission
         │
         ▼
 GET /api/v1/oauth/google/callback?code=...&state=...
         │
-Aurynix verifies state, exchanges code for tokens
+Aurynix validates state via Redis lookup → retrieves user_id
+Exchanges code for access + refresh tokens
+Stores encrypted token row in oauth_tokens table
         │
         ▼
-OAuthToken row created/updated (encrypted in DB)
-        │
-        ▼
-Redirect → frontend success page
+302 → OAUTH_SUCCESS_REDIRECT (frontend)
 ```
 
-### Why `state` carries a signed JWT?
-
-The `state` parameter is a short-lived JWT signed with `SECRET_KEY`. It encodes the user's ID so the callback handler knows which user just completed the OAuth flow without a server-side session. It expires in 10 minutes.
+**State parameter:** A random string generated per authorization attempt. It is stored in Redis keyed as `oauth:state:{state}` with the user's UUID as the value and a 10-minute TTL. This prevents CSRF without needing a separate session store.
 
 ---
 
@@ -70,62 +64,61 @@ The `state` parameter is a short-lived JWT signed with `SECRET_KEY`. It encodes 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
-| `user_id` | UUID FK | One row per provider per user |
-| `provider` | `varchar(20)` | `"google"` |
-| `access_token` | `text` | AES-256-GCM encrypted |
-| `refresh_token` | `text` | AES-256-GCM encrypted |
-| `token_expiry` | `timestamptz` | When the access token expires |
-| `scopes` | `text[]` | Granted scopes |
+| `user_id` | UUID FK → `users.id` | CASCADE delete |
+| `provider` | `varchar(50)` | `"google"` |
+| `encrypted_token` | `text` | AES-256-GCM encrypted JSON blob |
+| `scopes` | `text` | Space-separated list of granted scopes |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
 
-Tokens are encrypted using a key derived from `SECRET_KEY` via HKDF. The raw token never touches the database.
+One row per user per provider. Upserted on reconnect (`encrypted_token` and `scopes` are overwritten).
+
+### Encryption (`app/core/crypto.py`)
 
 ```python
-# app/core/crypto.py
-def encrypt_token(plain: str) -> str:
-    key = derive_key(settings.secret_key)
+def encrypt(plaintext: str) -> str:
+    """Return base64url-encoded nonce + ciphertext."""
     nonce = os.urandom(12)
-    ct = AESGCM(key).encrypt(nonce, plain.encode(), None)
-    return base64.b64encode(nonce + ct).decode()
+    ciphertext = AESGCM(_derive_key()).encrypt(nonce, plaintext.encode(), None)
+    return base64.urlsafe_b64encode(nonce + ciphertext).decode()
 
-def decrypt_token(cipher: str) -> str:
-    raw = base64.b64decode(cipher)
-    nonce, ct = raw[:12], raw[12:]
-    key = derive_key(settings.secret_key)
-    return AESGCM(key).decrypt(nonce, ct, None).decode()
+def decrypt(blob: str) -> str:
+    raw = base64.urlsafe_b64decode(blob.encode())
+    nonce, ciphertext = raw[:12], raw[12:]
+    return AESGCM(_derive_key()).decrypt(nonce, ciphertext, None).decode()
 ```
 
----
+Key is derived via `hashlib.sha256(settings.secret_key.encode()).digest()`. Rotating `SECRET_KEY` invalidates all stored tokens — users must reconnect.
 
-## Token Refresh
+The encrypted blob is a JSON object:
+```json
+{
+  "token": "<access_token>",
+  "refresh_token": "<refresh_token>",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "client_id": "...",
+  "client_secret": "...",
+  "scopes": ["openid", "https://www.googleapis.com/auth/gmail.readonly", ...]
+}
+```
 
-Google access tokens expire after 1 hour. The `get_google_credentials()` helper handles refresh transparently:
+### Restoring credentials
 
 ```python
 # app/core/google_auth.py
-async def get_google_credentials(user_id: str, db: AsyncSession) -> Credentials:
-    token = await load_oauth_token(user_id, "google", db)
-    if not token:
-        raise OAuthNotConnectedError("Google account not connected.")
-
-    creds = Credentials(
-        token=decrypt_token(token.access_token),
-        refresh_token=decrypt_token(token.refresh_token),
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=settings.google_client_id,
-        client_secret=settings.google_client_secret,
+def encrypted_to_credentials(encrypted: str) -> google.oauth2.credentials.Credentials:
+    d = json.loads(decrypt(encrypted))
+    return Credentials(
+        token=d["token"],
+        refresh_token=d.get("refresh_token"),
+        token_uri=d["token_uri"],
+        client_id=d["client_id"],
+        client_secret=d["client_secret"],
+        scopes=d.get("scopes"),
     )
-
-    if creds.expired:
-        creds.refresh(Request())
-        # persist updated access token
-        await update_oauth_token(user_id, creds, db)
-
-    return creds
 ```
 
-This is called by both the Gmail tool and the Calendar tool before any API request.
+The Google SDK handles access token refresh automatically when the credentials are used.
 
 ---
 
@@ -133,43 +126,41 @@ This is called by both the Gmail tool and the Calendar tool before any API reque
 
 ### `GET /api/v1/oauth/google/authorize`
 
-Returns a redirect URL. The client should navigate the user there.
+**Auth required.** Generates an authorization URL and stores the state in Redis.
 
 **Response:**
 ```json
 {
-  "authorization_url": "https://accounts.google.com/o/oauth2/auth?..."
+  "url": "https://accounts.google.com/o/oauth2/auth?...",
+  "state": "abc123xyz"
 }
 ```
 
 ### `GET /api/v1/oauth/google/callback`
 
-Handles Google's redirect. Not called directly by the frontend.
+**No auth.** Handles Google's redirect after user consent.
 
-Stores the token and redirects to `OAUTH_SUCCESS_REDIRECT` (configurable).
+Query params: `code`, `state` (or `error` on denial).
+
+Validates state via Redis, exchanges code for tokens, upserts `OAuthToken` row, then redirects to `OAUTH_SUCCESS_REDIRECT`.
 
 ### `GET /api/v1/oauth/google/status`
 
-Returns connection status for the current user.
+**Auth required.** Returns connection status for the current user.
 
 **Response (connected):**
 ```json
-{
-  "connected": true,
-  "provider": "google",
-  "scopes": ["gmail.modify", "calendar", "openid"],
-  "connected_at": "2026-08-01T10:00:00Z"
-}
+{ "connected": true, "scopes": ["openid", "https://...gmail.readonly", ...] }
 ```
 
 **Response (not connected):**
 ```json
-{ "connected": false }
+{ "connected": false, "scopes": [] }
 ```
 
-### `DELETE /api/v1/oauth/google/revoke`
+### `DELETE /api/v1/oauth/google/disconnect`
 
-Revokes the token at Google and deletes the `OAuthToken` row.
+**Auth required.** Deletes the `OAuthToken` row. Does **not** revoke the token at Google (so the user must also revoke at myaccount.google.com/permissions if needed).
 
 **Response:** `204 No Content`
 
@@ -177,7 +168,7 @@ Revokes the token at Google and deletes the `OAuthToken` row.
 
 ## Security Notes
 
-- The `state` JWT uses `HS256` and expires in 10 minutes — replay attacks outside that window are rejected.
-- Tokens are never logged. Structured log fields that might contain a token are always redacted.
-- The encryption key is derived via HKDF from `SECRET_KEY` — rotating `SECRET_KEY` invalidates all stored tokens (users must reconnect).
-- Scopes are stored and checked at tool call time — if a required scope is missing, the tool raises `OAuthScopeError` instead of silently failing.
+- The state value is a random string (not a JWT) stored in Redis with a 10-minute TTL.
+- Tokens are never logged. The encrypted blob is treated as an opaque string throughout the codebase.
+- Rotating `SECRET_KEY` invalidates all stored tokens.
+- Gmail and Calendar tools check for a valid `OAuthToken` row before making any API call, and return a human-readable error if the user hasn't connected their Google account.

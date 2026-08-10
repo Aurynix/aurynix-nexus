@@ -1,4 +1,5 @@
 """Google Calendar tool — list, create, and delete events."""
+
 import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -80,7 +81,13 @@ def _get_event(service, calendar_id: str, event_id: str) -> str:
 
 
 def _create_event(
-    service, calendar_id: str, summary: str, description: str, start: str, end: str, attendees: list[str]
+    service,
+    calendar_id: str,
+    summary: str,
+    description: str,
+    start: str,
+    end: str,
+    attendees: list[str],
 ) -> str:
     body = {
         "summary": summary,
@@ -101,9 +108,10 @@ def _delete_event(service, calendar_id: str, event_id: str) -> str:
 def _list_calendars(service) -> str:
     result = service.calendarList().list().execute()
     calendars = result.get("items", [])
-    return "\n".join(
-        f"- {c.get('summary', '?')} (id: {c['id']})" for c in calendars
-    ) or "No calendars."
+    return (
+        "\n".join(f"- {c.get('summary', '?')} (id: {c['id']})" for c in calendars)
+        or "No calendars."
+    )
 
 
 def make_calendar_tool(user_id: str, db) -> BaseTool:
@@ -133,9 +141,7 @@ def make_calendar_tool(user_id: str, db) -> BaseTool:
         from app.models.oauth_token import OAuthToken
 
         result = await db.execute(
-            select(OAuthToken).where(
-                OAuthToken.user_id == user_id, OAuthToken.provider == "google"
-            )
+            select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.provider == "google")
         )
         token_row = result.scalar_one_or_none()
         if not token_row:
@@ -150,7 +156,9 @@ def make_calendar_tool(user_id: str, db) -> BaseTool:
             if action == "get_event":
                 return _get_event(service, calendar_id, event_id)
             if action == "create_event":
-                return _create_event(service, calendar_id, summary, description, start, end, attendees)
+                return _create_event(
+                    service, calendar_id, summary, description, start, end, attendees
+                )
             if action == "delete_event":
                 return _delete_event(service, calendar_id, event_id)
             if action == "list_calendars":

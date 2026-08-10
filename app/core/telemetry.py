@@ -1,4 +1,5 @@
 """OpenTelemetry + Prometheus + Sentry setup."""
+
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -19,9 +20,13 @@ def setup_tracing(app) -> None:
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        resource = Resource.create({"service.name": "aurynix-nexus", "environment": settings.environment})
+        resource = Resource.create(
+            {"service.name": "aurynix-nexus", "environment": settings.environment}
+        )
         provider = TracerProvider(resource=resource)
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otlp_endpoint)))
+        provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otlp_endpoint))
+        )
         trace.set_tracer_provider(provider)
 
         FastAPIInstrumentor.instrument_app(app)

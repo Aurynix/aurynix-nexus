@@ -153,6 +153,8 @@ async def delete_document(doc_id: uuid.UUID, user: User, db: AsyncSession) -> No
     if doc.user_id != user.id:
         raise PermissionDeniedError().to_http_exception()
 
+    from app.rag.pipeline import RAGPipeline
+
     pipeline = RAGPipeline()
     await pipeline.delete_document(str(doc_id), str(user.id))
 

@@ -1,8 +1,7 @@
 """ARQ worker task definitions."""
+
 import uuid
 from pathlib import Path
-
-from arq import ArqRedis
 
 from app.core.logging import get_logger
 

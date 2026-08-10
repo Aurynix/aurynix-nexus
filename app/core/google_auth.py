@@ -1,11 +1,11 @@
 """Google OAuth 2.0 helpers — build flow, exchange code, restore credentials."""
+
 import asyncio
 import json
 from typing import Any
 
 from app.core.config import settings
 from app.core.crypto import decrypt, encrypt
-
 
 _GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
 _GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"

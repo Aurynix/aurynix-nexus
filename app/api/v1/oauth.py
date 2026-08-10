@@ -1,4 +1,5 @@
 """Google OAuth 2.0 endpoints."""
+
 import asyncio
 import uuid
 
@@ -53,18 +54,14 @@ async def google_callback(
         return _error_redirect("invalid_state")
     await redis.delete(f"oauth:state:{state}")
 
-    user_id = uuid.UUID(
-        user_id_raw if isinstance(user_id_raw, str) else user_id_raw.decode()
-    )
+    user_id = uuid.UUID(user_id_raw if isinstance(user_id_raw, str) else user_id_raw.decode())
 
     token_dict = await exchange_code_async(code, state)
     encrypted = token_dict_to_encrypted(token_dict)
     scopes = " ".join(token_dict.get("scopes") or GOOGLE_SCOPES)
 
     result = await db.execute(
-        select(OAuthToken).where(
-            OAuthToken.user_id == user_id, OAuthToken.provider == "google"
-        )
+        select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.provider == "google")
     )
     existing = result.scalar_one_or_none()
 
@@ -73,9 +70,7 @@ async def google_callback(
         existing.scopes = scopes
     else:
         db.add(
-            OAuthToken(
-                user_id=user_id, provider="google", encrypted_token=encrypted, scopes=scopes
-            )
+            OAuthToken(user_id=user_id, provider="google", encrypted_token=encrypted, scopes=scopes)
         )
 
     await db.commit()

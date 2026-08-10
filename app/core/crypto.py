@@ -1,4 +1,5 @@
 """AES-256-GCM symmetric encryption for storing OAuth tokens at rest."""
+
 import base64
 import hashlib
 import os

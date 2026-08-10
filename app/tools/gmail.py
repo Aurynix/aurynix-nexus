@@ -1,4 +1,5 @@
 """Gmail tool — read, search, and send emails via Google API."""
+
 import asyncio
 from typing import Literal
 
@@ -36,7 +37,12 @@ def _list_inbox(service, max_results: int) -> str:
         detail = (
             service.users()
             .messages()
-            .get(userId="me", id=m["id"], format="metadata", metadataHeaders=["Subject", "From", "Date"])
+            .get(
+                userId="me",
+                id=m["id"],
+                format="metadata",
+                metadataHeaders=["Subject", "From", "Date"],
+            )
             .execute()
         )
         headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
@@ -59,7 +65,12 @@ def _search_messages(service, query: str, max_results: int) -> str:
         detail = (
             service.users()
             .messages()
-            .get(userId="me", id=m["id"], format="metadata", metadataHeaders=["Subject", "From", "Date"])
+            .get(
+                userId="me",
+                id=m["id"],
+                format="metadata",
+                metadataHeaders=["Subject", "From", "Date"],
+            )
             .execute()
         )
         headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
@@ -113,8 +124,17 @@ def _reply_message(service, message_id: str, body: str) -> str:
     import base64
     from email.mime.text import MIMEText
 
-    original = service.users().messages().get(userId="me", id=message_id, format="metadata",
-                                               metadataHeaders=["Subject", "From", "Message-ID"]).execute()
+    original = (
+        service.users()
+        .messages()
+        .get(
+            userId="me",
+            id=message_id,
+            format="metadata",
+            metadataHeaders=["Subject", "From", "Message-ID"],
+        )
+        .execute()
+    )
     headers = {h["name"]: h["value"] for h in original.get("payload", {}).get("headers", [])}
     subject = headers.get("Subject", "")
     if not subject.lower().startswith("re:"):
@@ -129,7 +149,9 @@ def _reply_message(service, message_id: str, body: str) -> str:
         mime["References"] = headers["Message-ID"]
 
     raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
-    service.users().messages().send(userId="me", body={"raw": raw, "threadId": original["threadId"]}).execute()
+    service.users().messages().send(
+        userId="me", body={"raw": raw, "threadId": original["threadId"]}
+    ).execute()
     return f"Reply sent to {to}."
 
 
@@ -163,9 +185,7 @@ def make_gmail_tool(user_id: str, db) -> BaseTool:
         from app.models.oauth_token import OAuthToken
 
         result = await db.execute(
-            select(OAuthToken).where(
-                OAuthToken.user_id == user_id, OAuthToken.provider == "google"
-            )
+            select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.provider == "google")
         )
         token_row = result.scalar_one_or_none()
         if not token_row:

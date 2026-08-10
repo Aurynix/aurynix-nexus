@@ -1,53 +1,47 @@
 # Observability
 
-Aurynix exports metrics, distributed traces, and error events so you can monitor the system in production without reading log files.
+Aurynix exports metrics, distributed traces, and error events so you can monitor production without reading raw log files.
 
 ---
 
 ## Stack
 
-| Concern | Tool | Where |
+| Concern | Tool | Notes |
 |---|---|---|
-| Structured logs | `structlog` (Phase 1) | stdout → log aggregator |
-| Distributed traces | OpenTelemetry → Jaeger | `http://localhost:16686` |
-| Metrics | Prometheus + Grafana | `http://localhost:3000` |
-| Error tracking | Sentry | `https://sentry.io` |
+| Structured logs | `structlog` (Phase 1) | JSON in production, colored console in dev |
+| Distributed traces | OpenTelemetry → any OTLP collector | Jaeger, Grafana Tempo, etc. |
+| Metrics | Prometheus (`/metrics`) | Scraped by Prometheus, visualized in Grafana |
+| Error tracking | Sentry | Automatic FastAPI + SQLAlchemy integration |
 
 ---
 
 ## OpenTelemetry — Distributed Tracing
 
-Every HTTP request, LangGraph node, tool call, and database query is captured as a span. This lets you see exactly where time is spent for any chat request.
-
-### Setup
+### Configuration
 
 ```bash
-OTEL_SERVICE_NAME=aurynix-nexus
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317   # Jaeger / Grafana Tempo
-OTEL_TRACES_SAMPLER=parentbased_traceid_ratio
-OTEL_TRACES_SAMPLER_ARG=0.1                         # sample 10% in production
+OTLP_ENDPOINT=http://localhost:4317   # gRPC endpoint of your OTLP collector
 ```
 
-### Instrumentation
+If `OTLP_ENDPOINT` is empty, tracing is disabled (no-op).
+
+### What is instrumented
+
+`setup_tracing(app)` is called in `create_app()` and instruments:
+- **FastAPI** — every HTTP request becomes a root span
+- **SQLAlchemy** — every query becomes a child span
 
 ```python
 # app/core/telemetry.py
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-def setup_telemetry() -> None:
-    provider = TracerProvider(resource=Resource({"service.name": settings.otel_service_name}))
-    provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_endpoint))
-    )
+def setup_tracing(app) -> None:
+    if not settings.otlp_endpoint:
+        return
+    resource = Resource.create({"service.name": "aurynix-nexus", "environment": settings.environment})
+    provider = TracerProvider(resource=resource)
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otlp_endpoint)))
     trace.set_tracer_provider(provider)
-
-    # Auto-instrument FastAPI, SQLAlchemy, httpx, Redis
-    FastAPIInstrumentor.instrument()
-    SQLAlchemyInstrumentor.instrument()
-    HTTPXClientInstrumentor.instrument()
-    RedisInstrumentor.instrument()
+    FastAPIInstrumentor.instrument_app(app)
+    SQLAlchemyInstrumentor().instrument()
 ```
 
 ### What a trace looks like
@@ -56,137 +50,118 @@ def setup_telemetry() -> None:
 POST /api/v1/chat/stream                          [450ms]
   ├─ auth: verify JWT                             [2ms]
   ├─ db: load conversation                        [5ms]
-  ├─ LangGraph: run graph                         [440ms]
-  │    ├─ node: memory_load                       [12ms]
-  │    │    └─ db: SELECT memory_facts            [11ms]
-  │    ├─ node: agent                             [380ms]
-  │    │    ├─ llm: ChatGroq.invoke               [320ms]
-  │    │    └─ tool: knowledge_base_search        [55ms]
-  │    │         ├─ embed: FastEmbed              [8ms]
-  │    │         └─ qdrant: search                [45ms]
-  │    └─ node: memory_save                       [35ms]
-  │         └─ db: UPSERT memory_facts            [33ms]
+  ├─ LangGraph: supervisor_node                   [180ms]
+  │    └─ llm: ChatGroq (routing decision)        [170ms]
+  ├─ LangGraph: research_agent                    [240ms]
+  │    ├─ llm: ChatGroq (tool selection)          [150ms]
+  │    ├─ tool: knowledge_base_search             [55ms]
+  │    │    ├─ embed: FastEmbed                   [8ms]
+  │    │    └─ qdrant: search                     [45ms]
+  │    └─ llm: ChatGroq (synthesis)              [80ms]
   └─ db: INSERT message                           [4ms]
-```
-
-### Custom spans
-
-```python
-tracer = trace.get_tracer(__name__)
-
-async def agent_node(state, config):
-    with tracer.start_as_current_span("agent_node") as span:
-        span.set_attribute("user_id", state["user_id"])
-        span.set_attribute("iteration", state["iteration_count"])
-        ...
 ```
 
 ---
 
 ## Prometheus — Metrics
 
-Metrics are exposed at `GET /metrics` (Prometheus scrape endpoint). A Grafana dashboard displays them.
+Metrics are exposed at `GET /metrics` (excluded from OpenAPI docs). Prometheus scrapes this endpoint; Grafana visualizes it.
 
-### Docker Compose addition
+### Metrics defined in `app/core/metrics.py`
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `aurynix_chat_requests_total` | Counter | `status` | Total chat stream requests |
+| `aurynix_auth_requests_total` | Counter | `endpoint`, `status` | Total auth requests |
+| `aurynix_document_ingestions_total` | Counter | `status` | Document ingest jobs |
+| `aurynix_tool_calls_total` | Counter | `tool_name` | Tool invocations by name |
+| `aurynix_rate_limit_rejections_total` | Counter | `group` | Requests rejected by rate limiting |
+| `aurynix_chat_latency_seconds` | Histogram | — | Time to first token in a chat stream |
+| `aurynix_ingest_duration_seconds` | Histogram | — | Document ingestion wall-clock time |
+| `aurynix_active_sse_connections` | Gauge | — | Open SSE streaming connections |
+
+### Where metrics are recorded
+
+- **Chat service** — `active_sse_connections` gauge increments on stream open, decrements on close. `chat_latency_seconds` records time-to-first-token. `chat_requests_total` increments on success or error.
+- **Rate limit middleware** — `rate_limit_rejections_total` increments on every 429 response.
+
+### Prometheus scrape config
 
 ```yaml
-prometheus:
-  image: prom/prometheus:v2.53.0
-  volumes:
-    - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
-  ports: ["9090:9090"]
-
-grafana:
-  image: grafana/grafana:11.1.0
-  ports: ["3000:3000"]
-  volumes:
-    - grafana-data:/var/lib/grafana
-```
-
-### Key metrics
-
-| Metric | Type | Description |
-|---|---|---|
-| `aurynix_http_requests_total` | Counter | Total requests by method, path, status |
-| `aurynix_http_request_duration_seconds` | Histogram | Request latency |
-| `aurynix_llm_calls_total` | Counter | LLM API calls by model |
-| `aurynix_llm_tokens_total` | Counter | Tokens used (prompt + completion) |
-| `aurynix_llm_latency_seconds` | Histogram | LLM call latency |
-| `aurynix_tool_calls_total` | Counter | Tool calls by tool name, success/failure |
-| `aurynix_cache_hits_total` | Counter | Cache hits by cache type |
-| `aurynix_cache_misses_total` | Counter | Cache misses by cache type |
-| `aurynix_worker_jobs_total` | Counter | ARQ jobs by type, status |
-| `aurynix_worker_job_duration_seconds` | Histogram | Worker job duration |
-| `aurynix_qdrant_search_latency_seconds` | Histogram | Vector search latency |
-| `aurynix_active_connections` | Gauge | Active SSE connections |
-
-### Recording metrics
-
-```python
-# app/core/metrics.py
-from prometheus_client import Counter, Histogram, Gauge
-
-llm_calls = Counter("aurynix_llm_calls_total", "LLM API calls", ["model"])
-llm_latency = Histogram("aurynix_llm_latency_seconds", "LLM latency", ["model"])
-llm_tokens = Counter("aurynix_llm_tokens_total", "Tokens used", ["model", "type"])
-
-def record_llm_call(model: str, duration: float, prompt_tokens: int, completion_tokens: int):
-    llm_calls.labels(model=model).inc()
-    llm_latency.labels(model=model).observe(duration)
-    llm_tokens.labels(model=model, type="prompt").inc(prompt_tokens)
-    llm_tokens.labels(model=model, type="completion").inc(completion_tokens)
+# prometheus.yml
+scrape_configs:
+  - job_name: aurynix
+    static_configs:
+      - targets: ["app:8000"]
+    metrics_path: /metrics
+    scrape_interval: 15s
 ```
 
 ---
 
 ## Sentry — Error Tracking
 
+### Configuration
+
 ```bash
 SENTRY_DSN=https://abc123@o123456.ingest.sentry.io/789
-SENTRY_ENVIRONMENT=production
-SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_TRACES_SAMPLE_RATE=0.1   # 10% of transactions sent as traces
 ```
+
+If `SENTRY_DSN` is empty, Sentry is disabled. Initialization runs at module import time in `app/main.py`:
 
 ```python
-# app/main.py
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-
-sentry_sdk.init(
-    dsn=settings.sentry_dsn,
-    environment=settings.environment,
-    traces_sample_rate=settings.sentry_traces_sample_rate,
-    integrations=[FastApiIntegration(), SqlalchemyIntegration()],
-    before_send=_scrub_tokens,   # strip OAuth tokens from event payloads
-)
+# app/core/telemetry.py
+def setup_sentry() -> None:
+    if not settings.sentry_dsn:
+        return
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        send_default_pii=False,
+    )
 ```
 
-### Alerts configured by default
-
-| Alert | Condition |
-|---|---|
-| High error rate | > 1% of requests return 5xx in a 5-minute window |
-| LLM timeout | Any `asyncio.TimeoutError` from Groq call |
-| Worker job exhausted | ARQ job exceeds `max_tries` |
-| OAuth token refresh failed | `google.auth.exceptions.RefreshError` |
+Sentry captures:
+- Unhandled exceptions in FastAPI route handlers
+- SQLAlchemy query errors
+- Any exception re-raised after logging in service layer
 
 ---
 
-## Health Check Endpoint (enhanced)
+## Structured Logs (Phase 1, still active)
 
-`GET /api/v1/health/ready` is extended to include worker and telemetry status:
+All logs are emitted via `structlog`. In development, they render as colored console output. In production (`ENVIRONMENT=production`), they render as JSON:
 
 ```json
-{
-  "status": "ready",
-  "checks": {
-    "postgres": "ok",
-    "redis": "ok",
-    "qdrant": "ok",
-    "worker": "ok",
-    "otel_exporter": "ok"
-  },
-  "version": "0.2.0"
-}
+{"event": "Ingest job enqueued", "doc_id": "550e8400-...", "job_id": "abc123", "level": "info", "timestamp": "2026-08-11 09:00:00"}
+```
+
+Context variables (`request_id`, `user_id`) are automatically bound per-request by `RequestIDMiddleware`.
+
+---
+
+## Local Development Setup
+
+```bash
+# Jaeger all-in-one (traces)
+docker run -d --name jaeger \
+  -p 16686:16686 -p 4317:4317 \
+  jaegertracing/all-in-one:1.60
+
+# Prometheus
+docker run -d --name prometheus \
+  -p 9090:9090 \
+  -v $(pwd)/docker/prometheus.yml:/etc/prometheus/prometheus.yml \
+  prom/prometheus:v2.53.0
+
+# Grafana
+docker run -d --name grafana -p 3001:3000 grafana/grafana:11.1.0
+```
+
+Then set in `.env`:
+```bash
+OTLP_ENDPOINT=http://localhost:4317
 ```
