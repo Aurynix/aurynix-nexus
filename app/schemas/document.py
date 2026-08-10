@@ -16,6 +16,7 @@ class DocumentResponse(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+    job_id: str | None = None
 
 
 class DocumentListResponse(BaseModel):

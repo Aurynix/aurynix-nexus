@@ -64,6 +64,9 @@ dependencies = [
     # Phase 2 — Google OAuth + APIs
     "google-auth-oauthlib>=1.2",
     "google-api-python-client>=2.140",
+
+    # Phase 2 — background workers
+    "arq>=0.26",
 ]
 
 [project.optional-dependencies]
