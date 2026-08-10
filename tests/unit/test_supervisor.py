@@ -1,5 +1,5 @@
-from app.agents.supervisor import SupervisorDecision, route_supervisor
 from app.agents.state import AgentState
+from app.agents.supervisor import SupervisorDecision, route_supervisor
 
 
 def _make_state(next_agent=None, iteration_count=0) -> AgentState:
