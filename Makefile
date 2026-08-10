@@ -9,10 +9,10 @@ else
     VENV_BIN := .venv/bin
 endif
 
-PYTHON  := $(VENV_BIN)/python
-UVICORN := $(VENV_BIN)/uvicorn
-PYTEST  := $(VENV_BIN)/pytest
-RUFF    := $(VENV_BIN)/ruff
+PYTHON  := uv run python
+UVICORN := uv run uvicorn
+PYTEST  := uv run pytest
+RUFF    := uv run ruff
 
 SERVER_IP   := YOUR_SERVER_IP
 SERVER_KEY  := ~/.ssh/aurynix.key
@@ -42,10 +42,8 @@ help:
 # -----------------------------
 # Setup
 # -----------------------------
-.venv:
+install:
 	uv sync --extra dev
-
-install: .venv
 
 # -----------------------------
 # Dev
