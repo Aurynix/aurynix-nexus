@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     google_redirect_uri: str = "http://localhost:8000/api/v1/oauth/google/callback"
     oauth_success_redirect: str = "http://localhost:3000/settings?oauth=success"
 
+    # Phase 2 — Observability
+    otlp_endpoint: str = ""
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list) -> list[str]:

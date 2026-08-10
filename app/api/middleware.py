@@ -80,6 +80,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         reset_ts = (window + 1) * 60
 
         if count > limit:
+            from app.core.metrics import rate_limit_rejections_total
+
+            rate_limit_rejections_total.labels(group=group).inc()
             retry_after = reset_ts - int(time.time())
             return JSONResponse(
                 {"detail": f"Rate limit exceeded. Retry after {retry_after}s."},

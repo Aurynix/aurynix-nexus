@@ -67,6 +67,15 @@ dependencies = [
 
     # Phase 2 — background workers
     "arq>=0.26",
+
+    # Phase 2 — observability
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+    "prometheus-client>=0.21",
+    "sentry-sdk[fastapi]>=2.16",
 ]
 
 [project.optional-dependencies]
