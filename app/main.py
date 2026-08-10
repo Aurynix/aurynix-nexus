@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.middleware import RequestIDMiddleware
+from app.api.middleware import RateLimitMiddleware, RequestIDMiddleware
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.exceptions import AurynixError
@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
     @app.exception_handler(AurynixError)

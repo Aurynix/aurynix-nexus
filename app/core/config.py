@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_size_mb: int = 50
 
+    # Phase 2 — web search
+    tavily_api_key: str = ""
+
+    # Phase 2 — rate limiting
+    rate_limit_chat: int = 20
+    rate_limit_auth: int = 10
+    rate_limit_documents: int = 30
+    rate_limit_default: int = 60
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list) -> list[str]:
