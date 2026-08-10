@@ -15,21 +15,24 @@ _SYSTEM_PROMPT = """You are Aurynix, an AI-powered business assistant.
 You help users by:
 - Answering questions using their uploaded documents (use knowledge_base_search)
 - Searching the web for current information (use web_search)
+- Reading and sending emails (use gmail — only if user has connected Google)
+- Managing calendar events (use calendar — only if user has connected Google)
+- Requesting human approval when a task is ambiguous or risky (use request_human_input)
 - Remembering important facts about the user and their work
-- Providing thoughtful, accurate responses
 
 User context:
 {user_facts}
 
 Be concise, accurate, and helpful. Prefer the knowledge base over web search when the user's
-documents are likely to have the answer. Cite sources when using either tool.
+documents are likely to have the answer. Cite sources when using tools.
 """
 
 
-async def execute_tools_node(state: AgentState) -> dict:
+async def execute_tools_node(state: AgentState, config: RunnableConfig) -> dict:
     """Custom tool executor that creates per-user tools from state."""
     user_id = state["user_id"]
-    tools_by_name = {t.name: t for t in make_tools(user_id)}
+    db = (config.get("configurable") or {}).get("db")
+    tools_by_name = {t.name: t for t in make_tools(user_id, db=db)}
 
     last_message = state["messages"][-1]
     tool_messages: list[ToolMessage] = []
@@ -63,7 +66,8 @@ async def memory_load_node(state: AgentState, store: BaseStore) -> dict:
 
 async def agent_node(state: AgentState, config: RunnableConfig) -> dict:
     user_id = state["user_id"]
-    tools = make_tools(user_id)
+    db = (config.get("configurable") or {}).get("db")
+    tools = make_tools(user_id, db=db)
 
     llm = get_llm().bind_tools(tools)
 

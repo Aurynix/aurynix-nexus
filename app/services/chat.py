@@ -43,6 +43,7 @@ async def stream_chat(
         "configurable": {
             "thread_id": conv_id,
             "user_id": str(user.id),
+            "db": db,
         }
     }
 
