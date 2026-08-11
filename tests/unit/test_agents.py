@@ -14,6 +14,7 @@ def _make_state(**overrides) -> AgentState:
         "human_feedback": None,
         "iteration_count": 0,
         "error": None,
+        "next_agent": None,
     }
     base.update(overrides)
     return base

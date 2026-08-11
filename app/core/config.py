@@ -55,6 +55,26 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_size_mb: int = 50
 
+    # Phase 2 — web search
+    tavily_api_key: str = ""
+
+    # Phase 2 — rate limiting
+    rate_limit_chat: int = 20
+    rate_limit_auth: int = 10
+    rate_limit_documents: int = 30
+    rate_limit_default: int = 60
+
+    # Phase 2 — Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/api/v1/oauth/google/callback"
+    oauth_success_redirect: str = "http://localhost:3000/settings?oauth=success"
+
+    # Phase 2 — Observability
+    otlp_endpoint: str = ""
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list) -> list[str]:

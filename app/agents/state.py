@@ -14,3 +14,5 @@ class AgentState(TypedDict):
     human_feedback: str | None
     iteration_count: int
     error: str | None
+    # Multi-agent routing — set by the supervisor, consumed by sub-agent nodes
+    next_agent: str | None

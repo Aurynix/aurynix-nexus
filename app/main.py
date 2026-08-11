@@ -5,13 +5,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.middleware import RequestIDMiddleware
+from app.api.middleware import RateLimitMiddleware, RequestIDMiddleware
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.exceptions import AurynixError
 from app.core.logging import configure_logging, get_logger
+from app.core.telemetry import setup_sentry
 
 logger = get_logger(__name__)
+
+setup_sentry()
 
 
 @asynccontextmanager
@@ -71,6 +74,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
     @app.exception_handler(AurynixError)
@@ -81,6 +85,14 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(v1_router)
+
+    from app.core.metrics import metrics_endpoint
+
+    app.add_route("/metrics", metrics_endpoint, include_in_schema=False)
+
+    from app.core.telemetry import setup_tracing
+
+    setup_tracing(app)
 
     return app
 
