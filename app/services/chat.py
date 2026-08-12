@@ -43,6 +43,7 @@ async def stream_chat(
         "configurable": {
             "thread_id": conv_id,
             "user_id": str(user.id),
+            "db": db,
         }
     }
 
@@ -55,6 +56,7 @@ async def stream_chat(
         "human_feedback": None,
         "iteration_count": 0,
         "error": None,
+        "next_agent": None,
     }
 
     yield SSEEvent(
@@ -63,12 +65,12 @@ async def stream_chat(
     ).to_sse()
 
     assistant_content_parts: list[str] = []
+    first_token_sent = False
+    stream_start = asyncio.get_event_loop().time()
 
-    async def _ping_generator() -> AsyncGenerator[str, None]:
-        while True:
-            await asyncio.sleep(_PING_INTERVAL)
-            yield SSEEvent(type="ping").to_sse()
+    from app.core.metrics import active_connections, chat_latency_seconds, chat_requests_total
 
+    active_connections.inc()
     try:
         async for event in graph.astream_events(input_state, config=config, version="v2"):
             kind = event["event"]
@@ -83,6 +85,9 @@ async def stream_chat(
                 if isinstance(chunk, AIMessageChunk) and chunk.content:
                     token = chunk.content
                     assistant_content_parts.append(token)
+                    if not first_token_sent:
+                        chat_latency_seconds.observe(asyncio.get_event_loop().time() - stream_start)
+                        first_token_sent = True
                     yield SSEEvent(type="token", data={"content": token}).to_sse()
 
             elif kind == "on_tool_start":
@@ -99,10 +104,14 @@ async def stream_chat(
 
     except Exception as exc:
         logger.error("Chat stream error", error=str(exc), conversation_id=conv_id)
+        chat_requests_total.labels(status="error").inc()
         yield SSEEvent(
             type="error", data={"detail": "An error occurred during streaming."}
         ).to_sse()
+    else:
+        chat_requests_total.labels(status="success").inc()
     finally:
+        active_connections.dec()
         full_response = "".join(assistant_content_parts)
         if full_response:
             assistant_msg = Message(
