@@ -35,6 +35,9 @@ Current user facts:
 
 Based on the conversation so far, decide which agent should act next.
 If the task is done or no tool use is needed, choose FINISH.
+
+Respond with valid JSON only, in this exact format:
+{{"next": "<agent_name>", "reasoning": "<brief reason>"}}
 """
 
 
@@ -45,7 +48,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig) -> dict:
     facts_text = "\n".join(state["user_facts"]) if state["user_facts"] else "None"
     system = SystemMessage(content=_SUPERVISOR_PROMPT.format(user_facts=facts_text))
 
-    llm = get_llm().with_structured_output(SupervisorDecision)
+    llm = get_llm().with_structured_output(SupervisorDecision, method="json_mode")
 
     try:
         decision: SupervisorDecision = await llm.ainvoke([system, *state["messages"]])
