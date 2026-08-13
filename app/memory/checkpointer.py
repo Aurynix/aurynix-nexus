@@ -26,7 +26,7 @@ async def get_checkpointer() -> AsyncPostgresSaver:
                 "keepalives_count": 5,
             },
             check=AsyncConnectionPool.check_connection,
-            reconnect_attempts=5,
+            reconnect_timeout=60,
             open=False,
         )
         await _pool.open()
