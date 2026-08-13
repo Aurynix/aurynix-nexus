@@ -32,7 +32,9 @@ class Settings(BaseSettings):
     postgres_password: str = "changeme"
 
     # Redis — either set REDIS_URL (cloud) or individual fields (local)
-    redis_url_override: str = Field(default="", validation_alias=AliasChoices("REDIS_URL", "redis_url_override"))
+    redis_url_override: str = Field(
+        default="", validation_alias=AliasChoices("REDIS_URL", "redis_url_override")
+    )
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str = ""
