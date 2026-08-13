@@ -91,22 +91,6 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
-  deploy:
-    name: Deploy to OCI
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USER }}
-          key: ${{ secrets.OCI_SSH_KEY }}
-          script: |
-            cd /opt/aurynix/app
-            git pull origin main
-            docker compose up -d --build app worker
-            docker compose exec -T app python -m alembic upgrade head
-            echo "Deploy complete: $(date)"
+  # deploy:
+  #   Render handles deployment automatically on push to main.
+  #   Re-enable this job if switching to OCI self-hosted deployment.
