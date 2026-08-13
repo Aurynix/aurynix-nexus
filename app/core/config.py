@@ -98,10 +98,12 @@ class Settings(BaseSettings):
 
     def _pg_base(self, driver: str) -> str:
         if self.database_url:
-            # Replace scheme to match required driver, strip query params
-            raw = self.database_url.split("?")[0]
+            raw = self.database_url
             raw = raw.replace("postgresql://", f"postgresql+{driver}://", 1)
             raw = raw.replace("postgres://", f"postgresql+{driver}://", 1)
+            if driver == "asyncpg":
+                # asyncpg doesn't accept URL query params; SSL passed via connect_args
+                raw = raw.split("?")[0]
             return raw
         return f"postgresql+{driver}://{self._pg_userinfo}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
@@ -116,7 +118,7 @@ class Settings(BaseSettings):
     @property
     def checkpointer_database_url(self) -> str:
         if self.database_url:
-            raw = self.database_url.split("?")[0]
+            raw = self.database_url
             raw = raw.replace("postgresql+asyncpg://", "postgresql://", 1)
             raw = raw.replace("postgresql+psycopg2://", "postgresql://", 1)
             return raw
