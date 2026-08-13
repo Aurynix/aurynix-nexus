@@ -13,10 +13,22 @@ _pool: AsyncConnectionPool | None = None
 async def get_checkpointer() -> AsyncPostgresSaver:
     global _checkpointer, _pool
     if _checkpointer is None:
+        # checkpointer_database_url strips query params (needed to swap driver
+        # prefix), so sslmode=require must be re-added explicitly for Neon.
+        conninfo = settings.checkpointer_database_url + "?sslmode=require"
         _pool = AsyncConnectionPool(
-            conninfo=settings.checkpointer_database_url,
+            conninfo=conninfo,
             max_size=5,
-            kwargs={"autocommit": True, "prepare_threshold": 0},
+            kwargs={
+                "autocommit": True,
+                "prepare_threshold": 0,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 5,
+                "keepalives_count": 5,
+            },
+            check=AsyncConnectionPool.check_connection,
+            reconnect_attempts=5,
             open=False,
         )
         await _pool.open()
