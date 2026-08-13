@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 
-_connect_args = {"ssl": "require"} if settings.is_production else {}
+_connect_args = {"ssl": "require"} if (settings.is_production or settings.database_url) else {}
 
 engine = create_async_engine(
     settings.async_database_url,

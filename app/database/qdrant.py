@@ -12,7 +12,12 @@ _qdrant_client: AsyncQdrantClient | None = None
 async def get_qdrant_client() -> AsyncQdrantClient:
     global _qdrant_client
     if _qdrant_client is None:
-        if settings.qdrant_use_https or settings.qdrant_api_key:
+        if settings.qdrant_url:
+            _qdrant_client = AsyncQdrantClient(
+                url=settings.qdrant_url,
+                api_key=settings.qdrant_api_key or None,
+            )
+        elif settings.qdrant_use_https or settings.qdrant_api_key:
             _qdrant_client = AsyncQdrantClient(
                 url=f"https://{settings.qdrant_host}",
                 api_key=settings.qdrant_api_key or None,
