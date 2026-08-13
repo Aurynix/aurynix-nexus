@@ -1,3 +1,8 @@
+# SSH keys — never commit
+*.key
+*.pem
+*.ppk
+
 # Python
 __pycache__/
 *.py[cod]
