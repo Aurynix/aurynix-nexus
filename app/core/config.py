@@ -34,11 +34,14 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str = ""
+    redis_ssl: bool = False
 
     # Qdrant
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "aurynix_docs"
+    qdrant_api_key: str = ""
+    qdrant_use_https: bool = False
 
     # Auth
     secret_key: str = "change-me"
@@ -111,9 +114,10 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
+        scheme = "rediss" if self.redis_ssl else "redis"
         if self.redis_password:
-            return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
-        return f"redis://{self.redis_host}:{self.redis_port}/0"
+            return f"{scheme}://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
+        return f"{scheme}://{self.redis_host}:{self.redis_port}/0"
 
     @property
     def is_production(self) -> bool:
