@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,22 +23,30 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dimensions: int = 384
 
-    # PostgreSQL
+    # PostgreSQL — either set DATABASE_URL (cloud) or individual fields (local)
+    database_url: str = ""
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_db: str = "aurynix"
     postgres_user: str = "aurynix"
     postgres_password: str = "changeme"
 
-    # Redis
+    # Redis — either set REDIS_URL (cloud) or individual fields (local)
+    redis_url_override: str = Field(
+        default="", validation_alias=AliasChoices("REDIS_URL", "redis_url_override")
+    )
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str = ""
+    redis_ssl: bool = False
 
-    # Qdrant
+    # Qdrant — either set QDRANT_URL (cloud) or individual fields (local)
+    qdrant_url: str = ""
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "aurynix_docs"
+    qdrant_api_key: str = ""
+    qdrant_use_https: bool = False
 
     # Auth
     secret_key: str = "change-me"
@@ -88,32 +96,40 @@ class Settings(BaseSettings):
     def _pg_userinfo(self) -> str:
         return f"{quote(self.postgres_user, safe='')}:{quote(self.postgres_password, safe='')}"
 
+    def _pg_base(self, driver: str) -> str:
+        if self.database_url:
+            # Replace scheme to match required driver, strip query params
+            raw = self.database_url.split("?")[0]
+            raw = raw.replace("postgresql://", f"postgresql+{driver}://", 1)
+            raw = raw.replace("postgres://", f"postgresql+{driver}://", 1)
+            return raw
+        return f"postgresql+{driver}://{self._pg_userinfo}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+
     @property
     def async_database_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://{self._pg_userinfo}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+        return self._pg_base("asyncpg")
 
     @property
     def sync_database_url(self) -> str:
-        return (
-            f"postgresql+psycopg2://{self._pg_userinfo}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+        return self._pg_base("psycopg2")
 
     @property
     def checkpointer_database_url(self) -> str:
-        return (
-            f"postgresql://{self._pg_userinfo}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+        if self.database_url:
+            raw = self.database_url.split("?")[0]
+            raw = raw.replace("postgresql+asyncpg://", "postgresql://", 1)
+            raw = raw.replace("postgresql+psycopg2://", "postgresql://", 1)
+            return raw
+        return f"postgresql://{self._pg_userinfo}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     @property
     def redis_url(self) -> str:
+        if self.redis_url_override:
+            return self.redis_url_override
+        scheme = "rediss" if self.redis_ssl else "redis"
         if self.redis_password:
-            return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
-        return f"redis://{self.redis_host}:{self.redis_port}/0"
+            return f"{scheme}://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
+        return f"{scheme}://{self.redis_host}:{self.redis_port}/0"
 
     @property
     def is_production(self) -> bool:
