@@ -78,8 +78,15 @@ def make_subagent_node(agent_name: str):
                     )
                 )
 
-            # After tool execution, run the LLM once more to synthesize
-            synthesis = await llm.ainvoke([system, *state["messages"], *messages], config=config)
+            # Stream the synthesis so tokens appear in the SSE stream
+            synthesis_chunks = []
+            async for chunk in llm.astream(
+                [system, *state["messages"], *messages], config=config
+            ):
+                synthesis_chunks.append(chunk)
+            synthesis = synthesis_chunks[0] if synthesis_chunks else AIMessage(content="")
+            for c in synthesis_chunks[1:]:
+                synthesis = synthesis + c
             messages.append(synthesis)
 
         logger.info("Sub-agent completed", agent=agent_name, message_count=len(messages))

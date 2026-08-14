@@ -77,10 +77,17 @@ async def stream_chat(
             name = event.get("name", "")
             data: dict[str, Any] = event.get("data", {})
 
-            if kind == "on_chat_model_start":
+            # Only stream tokens from sub-agent LLM calls, not the supervisor
+            # (supervisor outputs JSON routing decisions, not user-facing text).
+            tags: list[str] = event.get("tags") or []
+            is_subagent_llm = any(
+                t in tags for t in ("research_agent", "email_agent", "calendar_agent")
+            ) or name in ("research_agent", "email_agent", "calendar_agent")
+
+            if kind == "on_chat_model_start" and is_subagent_llm:
                 yield SSEEvent(type="agent_start", data={"agent": name}).to_sse()
 
-            elif kind == "on_chat_model_stream":
+            elif kind == "on_chat_model_stream" and is_subagent_llm:
                 chunk = data.get("chunk")
                 if isinstance(chunk, AIMessageChunk) and chunk.content:
                     token = chunk.content
