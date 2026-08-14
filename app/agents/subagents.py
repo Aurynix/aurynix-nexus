@@ -88,7 +88,7 @@ def make_subagent_node(agent_name: str):
             messages.append(synthesis)
 
         logger.info("Sub-agent completed", agent=agent_name, message_count=len(messages))
-        return {"messages": messages}
+        return {"messages": messages, "agent_responded": True}
 
     subagent_node.__name__ = f"{agent_name}_agent"
     return subagent_node

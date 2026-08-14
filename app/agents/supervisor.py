@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
@@ -51,8 +51,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig) -> dict:
 
     messages = state.get("messages") or []
 
-    # If the last message is already an AI response, the sub-agent has answered — stop.
-    if messages and isinstance(messages[-1], AIMessage) and not messages[-1].tool_calls:
+    # If a sub-agent already produced a response this turn, stop.
+    if state.get("agent_responded"):
         return {"next_agent": "FINISH", "iteration_count": state["iteration_count"] + 1}
 
     # If the last message is from the user, we must call an agent (never FINISH first).

@@ -16,3 +16,5 @@ class AgentState(TypedDict):
     error: str | None
     # Multi-agent routing — set by the supervisor, consumed by sub-agent nodes
     next_agent: str | None
+    # Set to True by any sub-agent that produces a user-facing response
+    agent_responded: bool
