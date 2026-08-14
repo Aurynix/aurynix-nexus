@@ -1,10 +1,20 @@
 import uuid
 
 from fastapi import APIRouter, File, UploadFile
+from pydantic import BaseModel
 
 from app.core.dependencies import CurrentUser, DbSession, RedisClient
+from app.core.logging import get_logger
 from app.schemas.document import DocumentListResponse, DocumentResponse
 from app.services import document as doc_service
+
+logger = get_logger(__name__)
+
+
+class ChunkResponse(BaseModel):
+    index: int
+    page: int | None
+    content: str
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -35,43 +45,45 @@ async def get_document(
     return await doc_service.get_document(document_id, current_user, db)
 
 
-@router.get("/{document_id}/chunks")
+@router.get("/{document_id}/chunks", response_model=list[ChunkResponse])
 async def get_document_chunks(
     document_id: uuid.UUID,
     current_user: CurrentUser,
     db: DbSession,
-) -> list[dict]:
+) -> list[ChunkResponse]:
     """Return the raw text chunks stored in Qdrant for a document."""
     from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
     from app.core.config import settings
     from app.database.qdrant import get_qdrant_client
 
-    # Verify the document belongs to the user
     await doc_service.get_document(document_id, current_user, db)
 
-    client = await get_qdrant_client()
-    points, _ = await client.scroll(
-        collection_name=settings.qdrant_collection,
-        scroll_filter=Filter(
-            must=[
-                FieldCondition(key="doc_id", match=MatchValue(value=str(document_id))),
-                FieldCondition(key="user_id", match=MatchValue(value=str(current_user.id))),
-            ]
-        ),
-        with_payload=True,
-        limit=200,
-    )
+    try:
+        client = await get_qdrant_client()
+        points, _ = await client.scroll(
+            collection_name=settings.qdrant_collection,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(key="doc_id", match=MatchValue(value=str(document_id))),
+                    FieldCondition(key="user_id", match=MatchValue(value=str(current_user.id))),
+                ]
+            ),
+            with_payload=True,
+            limit=200,
+        )
+    except Exception:
+        logger.exception("Qdrant scroll failed", document_id=str(document_id))
+        raise
 
-    chunks = [
-        {
-            "index": i + 1,
-            "page": (p.payload or {}).get("page"),
-            "content": (p.payload or {}).get("page_content", ""),
-        }
+    return [
+        ChunkResponse(
+            index=i + 1,
+            page=(p.payload or {}).get("page"),
+            content=(p.payload or {}).get("page_content", ""),
+        )
         for i, p in enumerate(sorted(points, key=lambda p: (p.payload or {}).get("page") or 0))
     ]
-    return chunks
 
 
 @router.delete("/{document_id}", status_code=204)
