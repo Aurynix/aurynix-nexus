@@ -1,5 +1,5 @@
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import Distance, PayloadSchemaType, VectorParams
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -54,6 +54,16 @@ async def ensure_collection() -> None:
         logger.info("Qdrant collection created", collection=settings.qdrant_collection)
     else:
         logger.info("Qdrant collection exists", collection=settings.qdrant_collection)
+
+    # Ensure payload indexes exist — required for filtered scroll/search queries.
+    # create_payload_index is idempotent: safe to call on an existing collection.
+    for field in ("doc_id", "user_id"):
+        await client.create_payload_index(
+            collection_name=settings.qdrant_collection,
+            field_name=field,
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+    logger.info("Qdrant payload indexes ensured", collection=settings.qdrant_collection)
 
 
 async def check_qdrant_health() -> bool:
