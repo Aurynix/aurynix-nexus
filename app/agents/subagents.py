@@ -49,11 +49,17 @@ def make_subagent_node(agent_name: str):
         db = (config.get("configurable") or {}).get("db")
         tools = _get_tools_for_agent(agent_name, user_id, db)
 
-        llm = get_llm().bind_tools(tools)
-        system = SystemMessage(content=_PROMPTS.get(agent_name, "You are a helpful assistant."))
+        llm_with_tools = get_llm().bind_tools(tools)
+        plain_llm = get_llm()
+
+        prompt = _PROMPTS.get(agent_name, "You are a helpful assistant.")
+        facts = state.get("user_facts") or []
+        if facts:
+            prompt += "\n\nKnown facts about the user:\n" + "\n".join(facts)
+        system = SystemMessage(content=prompt)
 
         # Run the LLM step
-        response = await llm.ainvoke([system, *state["messages"]], config=config)
+        response = await llm_with_tools.ainvoke([system, *state["messages"]], config=config)
 
         messages = [response]
 
@@ -78,9 +84,9 @@ def make_subagent_node(agent_name: str):
                     )
                 )
 
-            # Stream the synthesis so tokens appear in the SSE stream
+            # Stream the synthesis — use plain LLM (no tools) so Groq returns text, not another tool call
             synthesis_chunks = []
-            async for chunk in llm.astream([system, *state["messages"], *messages], config=config):
+            async for chunk in plain_llm.astream([system, *state["messages"], *messages], config=config):
                 synthesis_chunks.append(chunk)
             synthesis = synthesis_chunks[0] if synthesis_chunks else AIMessage(content="")
             for c in synthesis_chunks[1:]:
