@@ -35,6 +35,46 @@ async def get_document(
     return await doc_service.get_document(document_id, current_user, db)
 
 
+@router.get("/{document_id}/chunks")
+async def get_document_chunks(
+    document_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> list[dict]:
+    """Return the raw text chunks stored in Qdrant for a document."""
+    from app.core.config import settings
+    from app.database.qdrant import get_qdrant_client
+    from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
+    # Verify the document belongs to the user
+    await doc_service.get_document(document_id, current_user, db)
+
+    client = await get_qdrant_client()
+    points, _ = await client.scroll(
+        collection_name=settings.qdrant_collection,
+        scroll_filter=Filter(
+            must=[
+                FieldCondition(key="doc_id", match=MatchValue(value=str(document_id))),
+                FieldCondition(key="user_id", match=MatchValue(value=str(current_user.id))),
+            ]
+        ),
+        with_payload=True,
+        limit=200,
+    )
+
+    chunks = [
+        {
+            "index": i + 1,
+            "page": (p.payload or {}).get("page"),
+            "content": (p.payload or {}).get("page_content", ""),
+        }
+        for i, p in enumerate(
+            sorted(points, key=lambda p: (p.payload or {}).get("page") or 0)
+        )
+    ]
+    return chunks
+
+
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
     document_id: uuid.UUID,
