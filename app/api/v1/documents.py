@@ -69,9 +69,7 @@ async def get_document_chunks(
             "page": (p.payload or {}).get("page"),
             "content": (p.payload or {}).get("page_content", ""),
         }
-        for i, p in enumerate(
-            sorted(points, key=lambda p: (p.payload or {}).get("page") or 0)
-        )
+        for i, p in enumerate(sorted(points, key=lambda p: (p.payload or {}).get("page") or 0))
     ]
     return chunks
 
