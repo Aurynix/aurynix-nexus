@@ -16,6 +16,7 @@ class ChunkResponse(BaseModel):
     page: int | None
     content: str
 
+
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
