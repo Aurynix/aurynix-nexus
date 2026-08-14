@@ -37,6 +37,12 @@ async def stream_chat(
         content=message,
     )
     db.add(user_msg)
+
+    # Set title from first message if not already set
+    if not conv.title:
+        conv.title = message[:100].strip()
+        db.add(conv)
+
     await db.commit()
 
     config = {
