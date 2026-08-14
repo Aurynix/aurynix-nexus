@@ -86,7 +86,9 @@ def make_subagent_node(agent_name: str):
 
             # Stream the synthesis — use plain LLM (no tools) so Groq returns text, not another tool call
             synthesis_chunks = []
-            async for chunk in plain_llm.astream([system, *state["messages"], *messages], config=config):
+            async for chunk in plain_llm.astream(
+                [system, *state["messages"], *messages], config=config
+            ):
                 synthesis_chunks.append(chunk)
             synthesis = synthesis_chunks[0] if synthesis_chunks else AIMessage(content="")
             for c in synthesis_chunks[1:]:
