@@ -12,7 +12,7 @@ class QdrantRetriever:
     def __init__(
         self,
         limit: int = 5,
-        score_threshold: float = 0.70,
+        score_threshold: float = 0.40,
     ) -> None:
         self._limit = limit
         self._score_threshold = score_threshold
