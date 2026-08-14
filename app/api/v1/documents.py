@@ -42,9 +42,10 @@ async def get_document_chunks(
     db: DbSession,
 ) -> list[dict]:
     """Return the raw text chunks stored in Qdrant for a document."""
+    from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
     from app.core.config import settings
     from app.database.qdrant import get_qdrant_client
-    from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
     # Verify the document belongs to the user
     await doc_service.get_document(document_id, current_user, db)
