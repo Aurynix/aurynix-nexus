@@ -11,8 +11,11 @@ logger = get_logger(__name__)
 
 _PROMPTS = {
     "research": (
-        "You are a research specialist. Use knowledge_base_search to find information "
-        "in the user's documents, and web_search for current or external information. "
+        "You are a research specialist with access to the user's uploaded documents.\n\n"
+        "IMPORTANT: Before saying you don't know something, ALWAYS call knowledge_base_search "
+        "first. The user's CV, reports, and other files are stored there — never assume you "
+        "have no information without searching first.\n\n"
+        "Use web_search only for current or external information not likely in their documents.\n"
         "Provide concise, sourced answers."
     ),
     "email": (
