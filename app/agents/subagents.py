@@ -80,9 +80,7 @@ def make_subagent_node(agent_name: str):
 
             # Stream the synthesis so tokens appear in the SSE stream
             synthesis_chunks = []
-            async for chunk in llm.astream(
-                [system, *state["messages"], *messages], config=config
-            ):
+            async for chunk in llm.astream([system, *state["messages"], *messages], config=config):
                 synthesis_chunks.append(chunk)
             synthesis = synthesis_chunks[0] if synthesis_chunks else AIMessage(content="")
             for c in synthesis_chunks[1:]:
