@@ -80,13 +80,13 @@ async def stream_chat(
 
             # Only stream tokens from sub-agent LLM calls, not the supervisor
             # (supervisor outputs JSON routing decisions, not user-facing text).
-            tags: list[str] = event.get("tags") or []
-            is_subagent_llm = any(
-                t in tags for t in ("research_agent", "email_agent", "calendar_agent")
-            ) or name in ("research_agent", "email_agent", "calendar_agent")
+            # In LangGraph astream_events v2, the node name is in metadata["langgraph_node"];
+            # event["name"] is the LLM class name (e.g. "ChatGroq"), not the node name.
+            langgraph_node = event.get("metadata", {}).get("langgraph_node", "")
+            is_subagent_llm = langgraph_node in ("research_agent", "email_agent", "calendar_agent")
 
             if kind == "on_chat_model_start" and is_subagent_llm:
-                yield SSEEvent(type="agent_start", data={"agent": name}).to_sse()
+                yield SSEEvent(type="agent_start", data={"agent": langgraph_node}).to_sse()
 
             elif kind == "on_chat_model_stream" and is_subagent_llm:
                 chunk = data.get("chunk")
